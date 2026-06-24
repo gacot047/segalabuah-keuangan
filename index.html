@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#15803d"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Segala Buah"/>
+<title>Segala Buah — Keuangan</title>
+
+<!-- PWA Manifest inline via JS -->
+<link rel="manifest" href="#" id="manifest-placeholder"/>
+
+<!-- SheetJS untuk export Excel -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green-dark: #15803d;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --green-mid: #bbf7d0;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --blue: #2563eb;
+    --amber: #f59e0b;
+    --text: #1e293b;
+    --text-mid: #374151;
+    --text-soft: #64748b;
+    --text-mute: #94a3b8;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --white: #fff;
+    --radius: 12px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  html, body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100%;
+    overflow-x: hidden;
+  }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #15803d 0%, #16a34a 60%, #4ade80 100%);
+    padding: 14px 16px 12px;
+    color: #fff;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.5px; }
+  .brand-sub { font-size: 11px; opacity: 0.85; margin-top: 1px; }
+  .bulan-picker {
+    background: rgba(255,255,255,0.2);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    color: #fff; border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; font-weight: 700;
+    cursor: pointer; max-width: 160px;
+  }
+  .bulan-picker option { background: #15803d; color: #fff; }
+
+  /* ── Bottom Nav ── */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    display: flex; background: var(--white);
+    border-top: 1px solid var(--border);
+    max-width: 480px; margin: 0 auto;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+  }
+  .nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px 10px; border: none; background: none;
+    cursor: pointer; color: var(--text-mute); font-size: 10px; font-weight: 600;
+    border-top: 2px solid transparent; transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-btn .icon { font-size: 20px; margin-bottom: 2px; }
+  .nav-btn.active { color: var(--green); border-top-color: var(--green); }
+
+  /* ── Content ── */
+  .content { flex: 1; padding: 16px 16px 90px; overflow-y: auto; }
+
+  /* ── Cards ── */
+  .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .card {
+    background: var(--white); border-radius: var(--radius);
+    padding: 14px 14px; box-shadow: var(--shadow);
+  }
+  .card-saldo { margin-bottom: 16px; text-align: center; border-top: 3px solid var(--blue); }
+  .card-green { border-top: 3px solid var(--green); }
+  .card-red { border-top: 3px solid var(--red); }
+  .card-label { font-size: 10px; color: var(--text-soft); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .card-val { font-size: 15px; font-weight: 800; color: var(--text); }
+  .card-val-big { font-size: 22px; font-weight: 800; margin-top: 4px; }
+
+  /* ── Section ── */
+  .section { background: var(--white); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .section-title { font-size: 12px; font-weight: 800; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+  /* ── Transaksi Row ── */
+  .tx-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #f1f5f9; }
+  .tx-row:last-child { border-bottom: none; }
+  .tx-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .tx-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tx-info { min-width: 0; }
+  .tx-kat { font-size: 13px; font-weight: 600; color: var(--text); }
+  .tx-note { font-size: 11px; color: var(--text-mute); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  .tx-right { text-align: right; flex-shrink: 0; }
+  .tx-nominal { font-size: 14px; font-weight: 800; }
+  .tx-tgl { font-size: 10px; color: var(--text-mute); margin-top: 1px; }
+
+  /* ── Budget Bar ── */
+  .budget-row { margin-bottom: 12px; }
+  .budget-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .progress-bar { height: 7px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 99px; transition: width 0.4s; }
+
+  /* ── Form ── */
+  .form-title { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 18px; }
+  .toggle-row { display: flex; gap: 10px; margin-bottom: 18px; }
+  .toggle-btn {
+    flex: 1; padding: 11px 0; border: 2px solid var(--border);
+    border-radius: 10px; font-size: 14px; font-weight: 700;
+    cursor: pointer; background: var(--white); color: var(--text-mute);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .toggle-btn.active-green { background: var(--green-light); border-color: var(--green); color: var(--green-dark); }
+  .toggle-btn.active-red { background: var(--red-light); border-color: var(--red); color: var(--red); }
+  label { display: block; font-size: 13px; font-weight: 700; color: var(--text-mid); margin-bottom: 5px; }
+  input, select, textarea {
+    display: block; width: 100%; padding: 11px 12px;
+    border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 14px; color: var(--text); background: var(--white);
+    margin-bottom: 14px; outline: none; font-family: inherit;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--green); }
+  textarea { height: 76px; resize: none; }
+  .err-msg { color: var(--red); font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+  .success-msg { background: var(--green-light); color: var(--green-dark); border-radius: 9px; padding: 10px 14px; font-size: 13px; font-weight: 700; margin-top: 10px; }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    display: block; width: 100%; padding: 13px 0;
+    background: linear-gradient(90deg, #15803d, #16a34a);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 800; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-blue {
+    display: block; width: 100%; padding: 12px 0;
+    background: var(--blue); color: #fff; border: none;
+    border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 10px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-outline-red {
+    display: block; width: 100%; padding: 12px 0;
+    background: var(--white); color: var(--red); border: 2px solid var(--red);
+    border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-add {
+    padding: 10px 14px; background: var(--green); color: #fff;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-del {
+    background: none; border: none; cursor: pointer;
+    font-size: 16px; color: var(--text-mute); padding: 4px 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Riwayat ── */
+  .tgl-header { font-size: 11px; font-weight: 800; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px; }
+  .riwayat-item { position: relative; }
+  .del-confirm { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--red-light); border-radius: 8px; margin-top: 4px; font-size: 12px; }
+  .btn-del-ya { background: var(--red); color: #fff; border: none; border-radius: 6px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btn-del-no { background: var(--border); color: var(--text-mid); border: none; border-radius: 6px; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+
+  /* ── Laporan ── */
+  .laporan-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+  .laporan-row:last-child { border-bottom: none; }
+  .laporan-total { border-top: 2px solid var(--border) !important; font-weight: 800; margin-top: 4px; padding-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 8px 8px; text-align: right; font-weight: 800; color: var(--text-soft); border-bottom: 2px solid var(--border); font-size: 11px; }
+  th:first-child { text-align: left; }
+  td { padding: 8px 8px; text-align: right; color: var(--text-mid); border-bottom: 1px solid #f1f5f9; }
+  td:first-child { text-align: left; font-weight: 600; }
+  tr.highlight-row { background: var(--green-light); }
+
+  /* ── Kategori chip ── */
+  .kat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .kat-chip { background: var(--green-light); color: var(--green-dark); border-radius: 20px; padding: 5px 10px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+  .chip-del { background: none; border: none; color: var(--green); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 1px; }
+  .input-row { display: flex; gap: 8px; align-items: center; }
+  .input-row input { flex: 1; margin-bottom: 0; }
+
+  /* ── Badge ── */
+  .badge-over { color: var(--red); font-size: 10px; font-weight: 700; background: var(--red-light); padding: 2px 6px; border-radius: 20px; margin-left: 4px; }
+
+  /* ── Empty state ── */
+  .empty { color: var(--text-mute); font-size: 14px; text-align: center; padding: 28px 0; }
+
+  /* ── Install banner ── */
+  #install-banner {
+    display: none; position: fixed; bottom: 65px; left: 0; right: 0;
+    max-width: 480px; margin: 0 auto;
+    background: var(--green-dark); color: #fff;
+    padding: 12px 16px; font-size: 13px; font-weight: 600;
+    display: none; align-items: center; justify-content: space-between;
+    z-index: 200; border-radius: 10px 10px 0 0;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+  }
+  #install-banner button { background: #fff; color: var(--green-dark); border: none; border-radius: 7px; padding: 7px 14px; font-size: 13px; font-weight: 800; cursor: pointer; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 10px 20px;
+    border-radius: 99px; font-size: 13px; font-weight: 600;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 300;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div>
+      <div class="brand">🍉 Segala Buah</div>
+      <div class="brand-sub">Pencatatan Keuangan</div>
+    </div>
+    <select class="bulan-picker" id="bulanPicker"></select>
+  </div>
+
+  <div class="content" id="content"></div>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <span class="icon">📊</span>Dashboard
+    </button>
+    <button class="nav-btn" data-tab="catat" onclick="switchTab('catat')">
+      <span class="icon">➕</span>Catat
+    </button>
+    <button class="nav-btn" data-tab="riwayat" onclick="switchTab('riwayat')">
+      <span class="icon">📋</span>Riwayat
+    </button>
+    <button class="nav-btn" data-tab="laporan" onclick="switchTab('laporan')">
+      <span class="icon">📈</span>Laporan
+    </button>
+    <button class="nav-btn" data-tab="atur" onclick="switchTab('atur')">
+      <span class="icon">⚙️</span>Atur
+    </button>
+  </nav>
+</div>
+
+<div id="install-banner">
+  <span>📲 Pasang di HP untuk akses cepat!</span>
+  <button id="install-btn">Pasang</button>
+</div>
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  STORAGE
+// ══════════════════════════════════════════════════════
+const KEYS = { transaksi: 'sb_tx', kategori: 'sb_kat', budget: 'sb_bgt' };
+const DEFAULT_KAT = {
+  pemasukan: ['Penjualan Tunai', 'Penjualan Transfer', 'Lain-lain'],
+  pengeluaran: ['Pembelian Stok', 'Operasional', 'Gaji/Honor', 'Marketing', 'Lain-lain']
+};
+
+function load(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }
+  catch { return def; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let transaksi = load(KEYS.transaksi, []);
+let kategori  = load(KEYS.kategori, DEFAULT_KAT);
+let budget    = load(KEYS.budget, {});
+
+function saveTx()  { save(KEYS.transaksi, transaksi); }
+function saveKat() { save(KEYS.kategori, kategori); }
+function saveBgt() { save(KEYS.budget, budget); }
+
+// ══════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════
+const rp = n => 'Rp ' + (Number(n)||0).toLocaleString('id-ID');
+const fmtTgl = s => s ? new Date(s).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '';
+const bulanLabel = ym => {
+  const [y,m] = ym.split('-');
+  return new Date(y, m-1, 1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+};
+const ymOf = s => s ? s.slice(0,7) : '';
+const today = () => new Date().toISOString().slice(0,10);
+
+let filterBulan = today().slice(0,7);
+
+// ══════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════
+let currentTab = 'dashboard';
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+  render();
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER UTAMA
+// ══════════════════════════════════════════════════════
+function render() {
+  updateBulanPicker();
+  const c = document.getElementById('content');
+  if (currentTab === 'dashboard') c.innerHTML = renderDashboard();
+  else if (currentTab === 'catat') c.innerHTML = renderCatat();
+  else if (currentTab === 'riwayat') c.innerHTML = renderRiwayat();
+  else if (currentTab === 'laporan') c.innerHTML = renderLaporan();
+  else if (currentTab === 'atur') c.innerHTML = renderAtur();
+  bindEvents();
+}
+
+function updateBulanPicker() {
+  const set = new Set(transaksi.map(t => ymOf(t.tanggal)));
+  set.add(today().slice(0,7));
+  const list = Array.from(set).sort().reverse();
+  const picker = document.getElementById('bulanPicker');
+  picker.innerHTML = list.map(b =>
+    `<option value="${b}" ${b===filterBulan?'selected':''}>${bulanLabel(b)}</option>`
+  ).join('');
+  picker.onchange = e => { filterBulan = e.target.value; render(); };
+}
+
+function txBulan() { return transaksi.filter(t => ymOf(t.tanggal) === filterBulan); }
+
+// ══════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════
+function renderDashboard() {
+  const list = txBulan();
+  const masuk  = list.filter(t=>t.jenis==='pemasukan').reduce((s,t)=>s+t.nominal,0);
+  const keluar = list.filter(t=>t.jenis==='pengeluaran').reduce((s,t)=>s+t.nominal,0);
+  const saldo  = masuk - keluar;
+  const kelKat = {};
+  list.filter(t=>t.jenis==='pengeluaran').forEach(t=>{ kelKat[t.kategori]=(kelKat[t.kategori]||0)+t.nominal; });
+
+  const budgetHtml = Object.keys(budget).length ? `
+    <div class="section">
+      <div class="section-title">Budget vs Realisasi</div>
+      ${Object.entries(budget).map(([k,target])=>{
+        const real = kelKat[k]||0;
+        const pct  = target>0 ? Math.min(real/target*100,100) : 0;
+        const over = real > target;
+        const color = over ? '#dc2626' : pct>80 ? '#f59e0b' : '#16a34a';
+        return `<div class="budget-row">
+          <div class="budget-label">
+            <span style="font-weight:600;color:#374151">${k}</span>
+            <span style="font-size:11px;color:${over?'#dc2626':'#64748b'}">${rp(real)} / ${rp(target)}</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const recent = list.slice(0,5);
+  const recentHtml = recent.length ? recent.map(txRowHtml).join('') : '<div class="empty">Belum ada transaksi bulan ini.</div>';
+
+  return `
+    <div class="card-row">
+      <div class="card card-green">
+        <div class="card-label">Pemasukan</div>
+        <div class="card-val">${rp(masuk)}</div>
+      </div>
+      <div class="card card-red">
+        <div class="card-label">Pengeluaran</div>
+        <div class="card-val">${rp(keluar)}</div>
+      </div>
+    </div>
+    <div class="card card-saldo">
+      <div class="card-label">Saldo Bulan Ini</div>
+      <div class="card-val-big" style="color:${saldo>=0?'#16a34a':'#dc2626'}">${saldo>=0?'+':''}${rp(saldo)}</div>
+    </div>
+    ${budgetHtml}
+    <div class="section">
+      <div class="section-title">Transaksi Terbaru</div>
+      ${recentHtml}
+    </div>`;
+}
+
+function txRowHtml(t) {
+  const color = t.jenis==='pemasukan' ? '#16a34a' : '#dc2626';
+  return `<div class="tx-row">
+    <div class="tx-left">
+      <div class="tx-dot" style="background:${color}"></div>
+      <div class="tx-info">
+        <div class="tx-kat">${t.kategori}</div>
+        ${t.catatan?`<div class="tx-note">${t.catatan}</div>`:''}
+      </div>
+    </div>
+    <div class="tx-right">
+      <div class="tx-nominal" style="color:${color}">${t.jenis==='pemasukan'?'+':'-'}${rp(t.nominal)}</div>
+      <div class="tx-tgl">${fmtTgl(t.tanggal)}</div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  CATAT
+// ══════════════════════════════════════════════════════
+let formState = { jenis: 'pemasukan' };
+function renderCatat() {
+  const j = formState.jenis;
+  const katList = (kategori[j]||[]);
+  return `
+    <div class="form-title">Catat Transaksi</div>
+    <div class="toggle-row">
+      <button class="toggle-btn ${j==='pemasukan'?'active-green':''}" onclick="setJenis('pemasukan')">➕ Pemasukan</button>
+      <button class="toggle-btn ${j==='pengeluaran'?'active-red':''}" onclick="setJenis('pengeluaran')">➖ Pengeluaran</button>
+    </div>
+    <label>Nominal (Rp)</label>
+    <input type="text" inputmode="numeric" id="fNominal" placeholder="0" oninput="fmtNominal(this)"/>
+    <label>Kategori</label>
+    <select id="fKat">
+      <option value="">-- Pilih kategori --</option>
+      ${katList.map(k=>`<option value="${k}">${k}</option>`).join('')}
+    </select>
+    <label>Tanggal</label>
+    <input type="date" id="fTgl" value="${today()}"/>
+    <label>Catatan (opsional)</label>
+    <textarea id="fCatatan" placeholder="Misal: beli mangga 15 kg dari Pak Dedi"></textarea>
+    <div id="fErr" class="err-msg"></div>
+    <button class="btn-primary" onclick="simpanTransaksi()">Simpan Transaksi</button>`;
+}
+
+function setJenis(j) { formState.jenis = j; render(); }
+
+function fmtNominal(el) {
+  const clean = el.value.replace(/[^\d]/g,'');
+  el.value = clean ? Number(clean).toLocaleString('id-ID') : '';
+}
+
+function simpanTransaksi() {
+  const nominal = Number(document.getElementById('fNominal').value.replace(/\./g,''));
+  const kat     = document.getElementById('fKat').value;
+  const tgl     = document.getElementById('fTgl').value;
+  const catatan = document.getElementById('fCatatan').value.trim();
+  const errEl   = document.getElementById('fErr');
+  if (!nominal || isNaN(nominal)) return errEl.textContent='Nominal harus diisi dengan angka.';
+  if (!kat) return errEl.textContent='Pilih kategori dulu.';
+  if (!tgl) return errEl.textContent='Tanggal wajib diisi.';
+  errEl.textContent = '';
+  transaksi.unshift({ id: Date.now().toString(), jenis: formState.jenis, nominal, kategori: kat, tanggal: tgl, catatan });
+  saveTx();
+  showToast('Transaksi disimpan ✓');
+  filterBulan = ymOf(tgl);
+  switchTab('riwayat');
+}
+
+// ══════════════════════════════════════════════════════
+//  RIWAYAT
+// ══════════════════════════════════════════════════════
+let konfirmDel = null;
+function renderRiwayat() {
+  const list = txBulan();
+  if (!list.length) return `<div class="form-title">Riwayat Transaksi</div><div class="empty">Belum ada transaksi bulan ini.</div>`;
+
+  const grouped = {};
+  list.forEach(t=>{ if(!grouped[t.tanggal]) grouped[t.tanggal]=[]; grouped[t.tanggal].push(t); });
+  const sorted = Object.entries(grouped).sort((a,b)=>b[0].localeCompare(a[0]));
+
+  return `<div class="form-title">Riwayat Transaksi</div>` +
+    sorted.map(([tgl,items])=>`
+      <div class="tgl-header">${fmtTgl(tgl)}</div>
+      ${items.map(t=>`
+        <div class="riwayat-item" id="ri-${t.id}">
+          <div style="display:flex;align-items:center">
+            <div style="flex:1">${txRowHtml(t)}</div>
+            <button class="btn-del" onclick="konfirmHapus('${t.id}')">🗑</button>
+          </div>
+          ${konfirmDel===t.id?`
+            <div class="del-confirm">
+              <span>Hapus transaksi ini?</span>
+              <button class="btn-del-ya" onclick="hapusTx('${t.id}')">Ya, hapus</button>
+              <button class="btn-del-no" onclick="batalHapus()">Batal</button>
+            </div>`:''
+          }
+        </div>`).join('')}
+    `).join('');
+}
+
+function konfirmHapus(id) { konfirmDel = id; render(); }
+function batalHapus() { konfirmDel = null; render(); }
+function hapusTx(id) {
+  transaksi = transaksi.filter(t=>t.id!==id);
+  saveTx(); konfirmDel = null;
+  showToast('Transaksi dihapus');
+  render();
+}
+
+// ══════════════════════════════════════════════════════
+//  LAPORAN
+// ══════════════════════════════════════════════════════
+function renderLaporan() {
+  const list = txBulan();
+  const masukKat={}, keluarKat={};
+  list.forEach(t=>{
+    if(t.jenis==='pemasukan') masukKat[t.kategori]=(masukKat[t.kategori]||0)+t.nominal;
+    else keluarKat[t.kategori]=(keluarKat[t.kategori]||0)+t.nominal;
+  });
+  const totalM = Object.values(masukKat).reduce((s,v)=>s+v,0);
+  const totalK = Object.values(keluarKat).reduce((s,v)=>s+v,0);
+
+  // Tren bulanan
+  const allYm = [...new Set(transaksi.map(t=>ymOf(t.tanggal)))].sort();
+  const tren = allYm.map(ym=>{
+    const l=transaksi.filter(t=>ymOf(t.tanggal)===ym);
+    const m=l.filter(t=>t.jenis==='pemasukan').reduce((s,t)=>s+t.nominal,0);
+    const k=l.filter(t=>t.jenis==='pengeluaran').reduce((s,t)=>s+t.nominal,0);
+    return {ym,m,k,s:m-k};
+  });
+
+  return `
+    <div class="form-title">Laporan ${bulanLabel(filterBulan)}</div>
+    <button class="btn-blue" onclick="exportExcel()">📊 Export ke Excel (.xlsx)</button>
+
+    <div class="section">
+      <div class="section-title">Pemasukan per Kategori</div>
+      ${!totalM?'<div class="empty">Tidak ada pemasukan.</div>':
+        Object.entries(masukKat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+          <div class="laporan-row">
+            <span>${k}</span>
+            <span style="color:#16a34a;font-weight:700">${rp(v)}</span>
+          </div>`).join('')+
+        `<div class="laporan-row laporan-total">
+          <span>Total Pemasukan</span>
+          <span style="color:#16a34a">${rp(totalM)}</span>
+        </div>`}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pengeluaran per Kategori</div>
+      ${!totalK?'<div class="empty">Tidak ada pengeluaran.</div>':
+        Object.entries(keluarKat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{
+          const bgt=budget[k], over=bgt&&v>bgt;
+          return `<div class="laporan-row">
+            <span>${k}${over?'<span class="badge-over">⚠️ Over</span>':''}</span>
+            <span style="color:${over?'#dc2626':'#374151'};font-weight:700">${rp(v)}</span>
+          </div>`;
+        }).join('')+
+        `<div class="laporan-row laporan-total">
+          <span>Total Pengeluaran</span>
+          <span style="color:#dc2626">${rp(totalK)}</span>
+        </div>`}
+    </div>
+
+    ${tren.length>1?`
+    <div class="section">
+      <div class="section-title">Tren Bulanan</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Bulan</th>
+            <th style="color:#16a34a">Masuk</th>
+            <th style="color:#dc2626">Keluar</th>
+            <th>Saldo</th>
+          </tr></thead>
+          <tbody>
+            ${tren.map(r=>`
+              <tr class="${r.ym===filterBulan?'highlight-row':''}">
+                <td>${bulanLabel(r.ym)}</td>
+                <td style="color:#16a34a">${rp(r.m)}</td>
+                <td style="color:#dc2626">${rp(r.k)}</td>
+                <td style="font-weight:700;color:${r.s>=0?'#16a34a':'#dc2626'}">${r.s>=0?'+':''}${rp(r.s)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`:''}`;
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT EXCEL
+// ══════════════════════════════════════════════════════
+function exportExcel() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Semua transaksi bulan ini
+  const list = txBulan();
+  const rows1 = [['Tanggal','Jenis','Kategori','Nominal','Catatan']];
+  list.forEach(t=>rows1.push([t.tanggal, t.jenis==='pemasukan'?'Pemasukan':'Pengeluaran', t.kategori, t.nominal, t.catatan||'']));
+  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  ws1['!cols'] = [{wch:14},{wch:14},{wch:20},{wch:16},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Transaksi');
+
+  // Sheet 2: Ringkasan bulan ini
+  const masukKat={}, keluarKat={};
+  list.forEach(t=>{
+    if(t.jenis==='pemasukan') masukKat[t.kategori]=(masukKat[t.kategori]||0)+t.nominal;
+    else keluarKat[t.kategori]=(keluarKat[t.kategori]||0)+t.nominal;
+  });
+  const totalM = Object.values(masukKat).reduce((s,v)=>s+v,0);
+  const totalK = Object.values(keluarKat).reduce((s,v)=>s+v,0);
+  const rows2 = [
+    [`LAPORAN ${bulanLabel(filterBulan).toUpperCase()}`,''],
+    [''],
+    ['PEMASUKAN',''],
+    ...Object.entries(masukKat).map(([k,v])=>[k,v]),
+    ['TOTAL PEMASUKAN', totalM],
+    [''],
+    ['PENGELUARAN',''],
+    ...Object.entries(keluarKat).map(([k,v])=>[k,v]),
+    ['TOTAL PENGELUARAN', totalK],
+    [''],
+    ['SALDO', totalM-totalK],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(rows2);
+  ws2['!cols'] = [{wch:24},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan');
+
+  // Sheet 3: Tren bulanan
+  const allYm = [...new Set(transaksi.map(t=>ymOf(t.tanggal)))].sort();
+  const rows3 = [['Bulan','Total Pemasukan','Total Pengeluaran','Saldo']];
+  allYm.forEach(ym=>{
+    const l=transaksi.filter(t=>ymOf(t.tanggal)===ym);
+    const m=l.filter(t=>t.jenis==='pemasukan').reduce((s,t)=>s+t.nominal,0);
+    const k=l.filter(t=>t.jenis==='pengeluaran').reduce((s,t)=>s+t.nominal,0);
+    rows3.push([bulanLabel(ym),m,k,m-k]);
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet(rows3);
+  ws3['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Tren Bulanan');
+
+  XLSX.writeFile(wb, `SegalaBuah-${filterBulan}.xlsx`);
+  showToast('File Excel berhasil diunduh ✓');
+}
+
+// ══════════════════════════════════════════════════════
+//  PENGATURAN
+// ══════════════════════════════════════════════════════
+function renderAtur() {
+  const katHtml = ['pemasukan','pengeluaran'].map(j=>`
+    <div class="section">
+      <div class="section-title">Kategori ${j==='pemasukan'?'Pemasukan ➕':'Pengeluaran ➖'}</div>
+      <div class="kat-chips">
+        ${(kategori[j]||[]).map(k=>`
+          <span class="kat-chip">${k}
+            <button class="chip-del" onclick="hapusKat('${j}','${k.replace(/'/g,"\\'")}')">×</button>
+          </span>`).join('')}
+      </div>
+      <div class="input-row">
+        <input type="text" id="newKat_${j}" placeholder="Tambah kategori baru..."/>
+        <button class="btn-add" onclick="tambahKat('${j}')">Tambah</button>
+      </div>
+    </div>`).join('');
+
+  const bgtHtml = `
+    <div class="section">
+      <div class="section-title">Target Budget Pengeluaran / Bulan</div>
+      ${(kategori.pengeluaran||[]).map(k=>`
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <label style="flex:1;margin-bottom:0;font-size:13px">${k}</label>
+          <input type="text" inputmode="numeric" id="bgt_${k.replace(/\s/g,'_')}"
+            style="width:130px;margin-bottom:0;text-align:right"
+            placeholder="0"
+            value="${budget[k]?Number(budget[k]).toLocaleString('id-ID'):''}"
+            oninput="fmtNominal(this)"/>
+        </div>`).join('')}
+      <button class="btn-primary" onclick="simpanBudget()" style="margin-top:8px">Simpan Budget</button>
+    </div>`;
+
+  return `
+    <div class="form-title">Pengaturan</div>
+    ${katHtml}
+    ${bgtHtml}
+    <div class="section">
+      <div class="section-title">Data & Backup</div>
+      <button class="btn-blue" onclick="exportExcelAll()">📊 Export Semua Data ke Excel</button>
+      <button class="btn-blue" style="background:#0891b2" onclick="exportJson()">📁 Backup Data (JSON)</button>
+      <label for="importFile" class="btn-primary" style="display:block;text-align:center;cursor:pointer;padding:12px 0;margin-bottom:10px;border-radius:10px;color:#fff;background:linear-gradient(90deg,#15803d,#16a34a);font-weight:800;font-size:14px">
+        📂 Restore dari Backup (JSON)
+      </label>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJson(event)"/>
+      <button class="btn-outline-red" onclick="hapusSemua()">🗑 Hapus Semua Transaksi</button>
+    </div>
+    <div id="msgAtur"></div>`;
+}
+
+function tambahKat(jenis) {
+  const el = document.getElementById(`newKat_${jenis}`);
+  const val = el.value.trim();
+  if (!val) return;
+  if ((kategori[jenis]||[]).includes(val)) return showToast('Kategori sudah ada!');
+  kategori[jenis] = [...(kategori[jenis]||[]), val];
+  saveKat(); el.value = '';
+  showToast('Kategori ditambahkan ✓');
+  render();
+}
+
+function hapusKat(jenis, kat) {
+  kategori[jenis] = (kategori[jenis]||[]).filter(k=>k!==kat);
+  saveKat(); render();
+}
+
+function simpanBudget() {
+  const result = {};
+  (kategori.pengeluaran||[]).forEach(k=>{
+    const el = document.getElementById('bgt_'+k.replace(/\s/g,'_'));
+    if (el) {
+      const n = Number(el.value.replace(/\./g,'').replace(/[^\d]/g,''));
+      if (n>0) result[k]=n;
+    }
+  });
+  budget = result; saveBgt();
+  showToast('Budget disimpan ✓');
+}
+
+function exportExcelAll() {
+  const wb = XLSX.utils.book_new();
+  const rows = [['Tanggal','Jenis','Kategori','Nominal','Catatan']];
+  transaksi.forEach(t=>rows.push([t.tanggal,t.jenis==='pemasukan'?'Pemasukan':'Pengeluaran',t.kategori,t.nominal,t.catatan||'']));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:20},{wch:16},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Semua Transaksi');
+  XLSX.writeFile(wb, `SegalaBuah-ALL-${today()}.xlsx`);
+  showToast('File Excel semua data berhasil diunduh ✓');
+}
+
+function exportJson() {
+  const blob = new Blob([JSON.stringify({transaksi,kategori,budget},null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `segalabuah-backup-${today()}.json`;
+  a.click();
+  showToast('Backup JSON berhasil diunduh ✓');
+}
+
+function importJson(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.transaksi) { transaksi = data.transaksi; saveTx(); }
+      if (data.kategori) { kategori = data.kategori; saveKat(); }
+      if (data.budget) { budget = data.budget; saveBgt(); }
+      showToast('Data berhasil dipulihkan ✓');
+      render();
+    } catch { showToast('File tidak valid!'); }
+  };
+  reader.readAsText(file);
+}
+
+function hapusSemua() {
+  if (!confirm('Yakin hapus SEMUA transaksi? Data tidak bisa dikembalikan kecuali ada backup.')) return;
+  transaksi = []; saveTx();
+  showToast('Semua transaksi dihapus');
+  render();
+}
+
+// ══════════════════════════════════════════════════════
+//  BIND EVENTS & TOAST
+// ══════════════════════════════════════════════════════
+function bindEvents() {}
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════
+//  PWA — Service Worker & Manifest
+// ══════════════════════════════════════════════════════
+const manifestData = {
+  name: 'Segala Buah — Keuangan',
+  short_name: 'SegalaBuah',
+  description: 'Aplikasi pencatatan keuangan toko buah Segala Buah',
+  start_url: '.',
+  display: 'standalone',
+  background_color: '#f8fafc',
+  theme_color: '#15803d',
+  icons: [
+    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍉</text></svg>', sizes: '192x192', type: 'image/svg+xml' },
+    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍉</text></svg>', sizes: '512x512', type: 'image/svg+xml' }
+  ]
+};
+const blob = new Blob([JSON.stringify(manifestData)],{type:'application/json'});
+document.getElementById('manifest-placeholder').href = URL.createObjectURL(blob);
+
+// Service Worker inline
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'sb-v1';
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll([
+        self.location.pathname
+      ])));
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(caches.keys().then(keys =>
+        Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))
+      ));
+      self.clients.claim();
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(
+        fetch(e.request).catch(()=>caches.match(e.request))
+      );
+    });
+  `;
+  const swBlob = new Blob([swCode],{type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(swBlob))
+    .catch(()=>{});
+}
+
+// Install prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  const banner = document.getElementById('install-banner');
+  banner.style.display = 'flex';
+  document.getElementById('install-btn').onclick = async () => {
+    banner.style.display = 'none';
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+  };
+});
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>
